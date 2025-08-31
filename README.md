@@ -1,16 +1,32 @@
-# second_app
+# Quiz App 🎉
 
-A new Flutter project.
+A simple and interactive **Flutter quiz application** built with Dart.  
+This app lets users answer multiple-choice questions, shows results at the end, and provides a summary of answers.
 
-## Getting Started
+## 📲 Download APK
+👉 [Download the latest APK here](https://github.com/AK-3112511/Quiz_app/releases/download/v1.0.0/app-release.apk)
 
-This project is a starting point for a Flutter application.
+## 📌 Features
+- Start screen to begin the quiz
+- Multiple-choice questions
+- Buttons to select answers
+- Score/result screen
+- Answer summary at the end
 
-A few resources to get you started if this is your first Flutter project:
+## 📸 App Preview  
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 🏁 Start Screen  
+![Start](https://raw.githubusercontent.com/AK-3112511/Quiz_app/main/assets/prev/start.jpg)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### ❓ Question Screen  
+![Question](https://raw.githubusercontent.com/AK-3112511/Quiz_app/main/assets/prev/question.jpg)
+
+### 🏆 Result Screen  
+![Result](https://raw.githubusercontent.com/AK-3112511/Quiz_app/main/assets/prev/result.jpg)
+
+## 🛠️ Tech Stack
+- Flutter  
+- Dart
+
+## 📄 License
+This project is licensed under the MIT License.
