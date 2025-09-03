@@ -4,7 +4,7 @@ A simple and interactive **Flutter quiz application** built with Dart.
 This app lets users answer multiple-choice questions, shows results at the end, and provides a summary of answers.
 
 ## 📲 Download APK
-👉 [Download the latest APK here](https://github.com/AK-3112511/Quiz_app/releases/download/v1.0.0/app-release.apk)
+👉 [Download the latest APK here](https://github.com/AK-3112511/Quiz_app/releases/download/v1.0.1/app-release.apk)
 
 ## 📌 Features
 - Start screen to begin the quiz
