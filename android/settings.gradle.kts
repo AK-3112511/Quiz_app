@@ -19,9 +19,9 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.1.4" apply false
+    id("com.android.application") version "8.6.1" apply false   // ✅ Flutter 3.35 expects AGP 8.6.x
     id("com.google.gms.google-services") version "4.4.2" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+    id("org.jetbrains.kotlin.android") version "2.0.21" apply false   // ✅ Kotlin version Flutter 3.35 uses
 }
 
 include(":app")
