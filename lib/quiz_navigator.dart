@@ -1,5 +1,8 @@
+// lib/screens/quiz_navigator.dart
+
 import 'package:flutter/material.dart';
 import 'package:Quiz_app/screens/start_screen.dart';
+import 'package:Quiz_app/screens/login_screen.dart';
 import 'package:Quiz_app/screens/language_selection_screen.dart';
 import 'package:Quiz_app/screens/quiz_screen.dart';
 import 'package:Quiz_app/screens/result_screen.dart';
@@ -14,17 +17,26 @@ class QuizNavigator extends StatefulWidget {
 class _QuizNavigatorState extends State<QuizNavigator> {
   late Widget currentScreen;
   String? selectedLanguage;
+  String? userName;
 
   @override
   void initState() {
     super.initState();
-    // Initially, show the StartScreen and pass it the showLanguageSelection method
-    currentScreen = StartScreen(startQuiz: showLanguageSelection);
+    // Initially, show the StartScreen and pass it the showLogin method
+    currentScreen = StartScreen(startQuiz: showLogin);
   }
 
-  void showLanguageSelection() {
+  void showLogin() {
     setState(() {
-      // When startQuiz is called from StartScreen, switch to LanguageSelectionScreen
+      // When startQuiz is called from StartScreen, switch to LoginScreen
+      currentScreen = LoginScreen(onLoginComplete: showLanguageSelection);
+    });
+  }
+
+  void showLanguageSelection(String name) {
+    setState(() {
+      userName = name;
+      // When login is complete, switch to LanguageSelectionScreen
       currentScreen = LanguageSelectionScreen(onLanguageSelected: startQuiz);
     });
   }
@@ -47,6 +59,7 @@ class _QuizNavigatorState extends State<QuizNavigator> {
         score: score, 
         totalQuestions: totalQuestions, 
         missed: missed,
+        userName: userName!, // Pass the user name for leaderboard
         onRestart: restartQuiz
       );
     });
@@ -55,8 +68,9 @@ class _QuizNavigatorState extends State<QuizNavigator> {
   void restartQuiz() {
     setState(() {
       selectedLanguage = null;
-      // When restart is called, go back to the StartScreen
-      currentScreen = StartScreen(startQuiz: showLanguageSelection);
+      // Keep userName so user doesn't need to login again
+      // When restart is called, go back to the LanguageSelectionScreen
+      currentScreen = LanguageSelectionScreen(onLanguageSelected: startQuiz);
     });
   }
 
