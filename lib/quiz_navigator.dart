@@ -18,6 +18,7 @@ class _QuizNavigatorState extends State<QuizNavigator> {
   late Widget currentScreen;
   String? selectedLanguage;
   String? userName;
+  String? userId;
 
   @override
   void initState() {
@@ -36,6 +37,9 @@ class _QuizNavigatorState extends State<QuizNavigator> {
   void showLanguageSelection(String name) {
     setState(() {
       userName = name;
+      // Generate a unique user ID using timestamp and random elements
+      userId = '${DateTime.now().millisecondsSinceEpoch}_${name.replaceAll(' ', '').toLowerCase()}';
+      
       // When login is complete, switch to LanguageSelectionScreen
       currentScreen = LanguageSelectionScreen(onLanguageSelected: startQuiz);
     });
@@ -44,9 +48,11 @@ class _QuizNavigatorState extends State<QuizNavigator> {
   void startQuiz(String language) {
     setState(() {
       selectedLanguage = language;
-      // When language is selected, switch to the QuizScreen with selected language
+      // When language is selected, switch to the QuizScreen with all required parameters
       currentScreen = QuizScreen(
         selectedLanguage: language,
+        userName: userName!,
+        userId: userId!,
         onQuizComplete: showResults,
       );
     });
@@ -54,12 +60,13 @@ class _QuizNavigatorState extends State<QuizNavigator> {
 
   void showResults(int score, int totalQuestions, int missed) {
     setState(() {
-      // When the quiz is complete, switch to the ResultScreen
+      // When the quiz is complete, switch to the ResultScreen with all required parameters
       currentScreen = ResultScreen(
         score: score, 
         totalQuestions: totalQuestions, 
         missed: missed,
-        userName: userName!, // Pass the user name for leaderboard
+        userName: userName!,
+        userId: userId!,
         onRestart: restartQuiz
       );
     });
@@ -68,7 +75,7 @@ class _QuizNavigatorState extends State<QuizNavigator> {
   void restartQuiz() {
     setState(() {
       selectedLanguage = null;
-      // Keep userName so user doesn't need to login again
+      // Keep userName and userId so user doesn't need to login again
       // When restart is called, go back to the LanguageSelectionScreen
       currentScreen = LanguageSelectionScreen(onLanguageSelected: startQuiz);
     });
@@ -80,6 +87,18 @@ class _QuizNavigatorState extends State<QuizNavigator> {
     return Scaffold(
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 800),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInOut,
+            )),
+            child: child,
+          );
+        },
         child: currentScreen,
       ),
     );

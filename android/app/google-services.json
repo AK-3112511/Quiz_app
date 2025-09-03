@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "779844169649",
+    "project_id": "quiz-app-iota-arham-1234-3d07c",
+    "storage_bucket": "quiz-app-iota-arham-1234-3d07c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:779844169649:android:d2fdace2cb294cdde55790",
+        "android_client_info": {
+          "package_name": "com.example.quiz_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkbcLQY9ox-2FjhD9TqGIGUsNmg8BL4ew"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

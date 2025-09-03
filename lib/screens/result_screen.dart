@@ -2,12 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'leaderboard_screen.dart';
 
 class ResultScreen extends StatefulWidget {
   final int score;
   final int totalQuestions;
   final int missed;
-  final String userName; // Added userName parameter
+  final String userName;
+  final String userId;
   final VoidCallback onRestart;
 
   const ResultScreen({
@@ -15,7 +17,8 @@ class ResultScreen extends StatefulWidget {
     required this.score,
     required this.totalQuestions,
     required this.missed,
-    required this.userName, // Added userName parameter
+    required this.userName,
+    required this.userId,
     required this.onRestart,
   });
 
@@ -28,11 +31,13 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
   late AnimationController _statsController;
   late AnimationController _celebrationController;
   late AnimationController _pulseController;
+  late AnimationController _buttonController;
 
   late Animation<double> _scoreAnimation;
   late Animation<double> _statsAnimation;
   late Animation<double> _celebrationAnimation;
   late Animation<double> _pulseAnimation;
+  late Animation<double> _buttonAnimation;
 
   @override
   void initState() {
@@ -42,6 +47,7 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
     _statsController = AnimationController(duration: const Duration(milliseconds: 1500), vsync: this);
     _celebrationController = AnimationController(duration: const Duration(milliseconds: 3000), vsync: this);
     _pulseController = AnimationController(duration: const Duration(milliseconds: 1000), vsync: this);
+    _buttonController = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
 
     _scoreAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _scoreController, curve: Curves.elasticOut)
@@ -55,19 +61,25 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
     _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut)
     );
+    _buttonAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _buttonController, curve: Curves.elasticOut)
+    );
 
     _startAnimations();
   }
 
   void _startAnimations() {
     Future.delayed(const Duration(milliseconds: 300), () {
-      _scoreController.forward();
+      if (mounted) _scoreController.forward();
     });
     Future.delayed(const Duration(milliseconds: 800), () {
-      _statsController.forward();
+      if (mounted) _statsController.forward();
     });
     Future.delayed(const Duration(milliseconds: 1200), () {
-      _celebrationController.forward();
+      if (mounted) _celebrationController.forward();
+    });
+    Future.delayed(const Duration(milliseconds: 1600), () {
+      if (mounted) _buttonController.forward();
     });
     _pulseController.repeat(reverse: true);
   }
@@ -78,6 +90,7 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
     _statsController.dispose();
     _celebrationController.dispose();
     _pulseController.dispose();
+    _buttonController.dispose();
     super.dispose();
   }
 
@@ -98,6 +111,31 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
     return Colors.redAccent;
   }
 
+  void _showFinalLeaderboard() {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => LeaderboardScreen(
+          currentUserId: widget.userId,
+          showBackButton: true,
+        ),
+        transitionDuration: const Duration(milliseconds: 500),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInOut,
+            )),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final percentage = (widget.score / widget.totalQuestions) * 100;
@@ -105,10 +143,6 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
 
     return Container(
       decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/images/IOTA_logo.png'),
-          fit: BoxFit.contain,
-        ),
         gradient: LinearGradient(
           colors: [Color(0xFF0F0F0F), Color(0xFF1A1A1A), Color(0xFF0F0F0F)],
           begin: Alignment.topLeft,
@@ -127,9 +161,9 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
                   animation: _scoreAnimation,
                   builder: (context, child) {
                     return Transform.scale(
-                      scale: _scoreAnimation.value,
+                      scale: _scoreAnimation.value.clamp(0.0, 1.0),
                       child: Opacity(
-                        opacity: _scoreAnimation.value,
+                        opacity: _scoreAnimation.value.clamp(0.0, 1.0),
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 16),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -241,9 +275,9 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
                   animation: _scoreAnimation,
                   builder: (context, child) {
                     return Transform.scale(
-                      scale: _scoreAnimation.value,
+                      scale: _scoreAnimation.value.clamp(0.0, 1.0),
                       child: Opacity(
-                        opacity: _scoreAnimation.value,
+                        opacity: _scoreAnimation.value.clamp(0.0, 1.0),
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Column(
@@ -300,12 +334,12 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: _getPerformanceColor().withOpacity(_celebrationAnimation.value * 0.5),
+                                    color: _getPerformanceColor().withOpacity((_celebrationAnimation.value * 0.5).clamp(0.0, 1.0)),
                                     width: 2.5,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: _getPerformanceColor().withOpacity(_celebrationAnimation.value * 0.3),
+                                      color: _getPerformanceColor().withOpacity((_celebrationAnimation.value * 0.3).clamp(0.0, 1.0)),
                                       blurRadius: 15,
                                       spreadRadius: 3,
                                     ),
@@ -320,7 +354,7 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
                             animation: _pulseAnimation,
                             builder: (context, child) {
                               return Transform.scale(
-                                scale: _pulseAnimation.value,
+                                scale: _pulseAnimation.value.clamp(0.5, 1.5),
                                 child: Container(
                                   width: 220,
                                   height: 220,
@@ -402,7 +436,7 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
                     return Transform.translate(
                       offset: Offset(0, (1 - _statsAnimation.value) * 50),
                       child: Opacity(
-                        opacity: _statsAnimation.value,
+                        opacity: _statsAnimation.value.clamp(0.0, 1.0),
                         child: Container(
                           padding: const EdgeInsets.all(20),
                           margin: const EdgeInsets.only(bottom: 16),
@@ -474,48 +508,93 @@ class _ResultScreenState extends State<ResultScreen> with TickerProviderStateMix
 
                 // Action Buttons
                 AnimatedBuilder(
-                  animation: _statsAnimation,
+                  animation: _buttonAnimation,
                   builder: (context, child) {
                     return Transform.scale(
-                      scale: _statsAnimation.value,
+                      scale: _buttonAnimation.value.clamp(0.0, 1.0),
                       child: Opacity(
-                        opacity: _statsAnimation.value,
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(22),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF00aaff), Color(0xFF0077cc)],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF00aaff).withOpacity(0.3),
-                                blurRadius: 15,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: ElevatedButton.icon(
-                            onPressed: widget.onRestart,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
+                        opacity: _buttonAnimation.value.clamp(0.0, 1.0),
+                        child: Column(
+                          children: [
+                            // Play Again Button
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(22),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF00aaff), Color(0xFF0077cc)],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF00aaff).withOpacity(0.3),
+                                    blurRadius: 15,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton.icon(
+                                onPressed: widget.onRestart,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.refresh, color: Colors.white, size: 26),
+                                label: const Text(
+                                  'PLAY AGAIN',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
                               ),
                             ),
-                            icon: const Icon(Icons.refresh, color: Colors.white, size: 26),
-                            label: const Text(
-                              'PLAY AGAIN',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
+                            
+                            // Final Leaderboard Button
+                            Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(22),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFFD700), Color(0xFFFF8F00)],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFFFD700).withOpacity(0.3),
+                                    blurRadius: 15,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton.icon(
+                                onPressed: _showFinalLeaderboard,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.emoji_events, color: Colors.black, size: 26),
+                                label: const Text(
+                                  'VIEW FINAL LEADERBOARD',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     );

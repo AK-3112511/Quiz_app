@@ -1,3 +1,20 @@
+// Top-level build.gradle.kts
+
+plugins {
+    // ✅ Android Gradle Plugin
+    id("com.android.application") version "8.9.1" apply false
+    id("com.android.library") apply false   // no version
+
+    // ✅ Kotlin → let Flutter handle
+    id("org.jetbrains.kotlin.android") apply false
+
+    // ✅ Firebase Google Services → no version (avoid conflict)
+    id("com.google.gms.google-services") apply false
+
+    // ✅ Flutter Gradle Plugin
+    id("dev.flutter.flutter-gradle-plugin") apply false
+}
+
 allprojects {
     repositories {
         google()
@@ -5,20 +22,14 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory =
-    rootProject.layout.buildDirectory
-        .dir("../../build")
-        .get()
-rootProject.layout.buildDirectory.value(newBuildDir)
+rootProject.buildDir = file("../build")
 
 subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
-subprojects {
+    project.buildDir = file("${rootProject.buildDir}/${project.name}")
     project.evaluationDependsOn(":app")
 }
 
+
 tasks.register<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
+    delete(rootProject.buildDir)
 }
