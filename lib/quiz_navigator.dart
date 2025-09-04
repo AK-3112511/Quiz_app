@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:Quiz_app/screens/start_screen.dart';
 import 'package:Quiz_app/screens/login_screen.dart';
 import 'package:Quiz_app/screens/language_selection_screen.dart';
-import 'package:Quiz_app/screens/quiz_screen.dart';
+import 'package:Quiz_app/screens/synchronized_quiz_screen.dart';
 import 'package:Quiz_app/screens/result_screen.dart';
 
 class QuizNavigator extends StatefulWidget {
@@ -49,12 +49,12 @@ class _QuizNavigatorState extends State<QuizNavigator> {
     setState(() {
       selectedLanguage = language;
       // When language is selected, switch to the QuizScreen with all required parameters
-      currentScreen = QuizScreen(
-        selectedLanguage: language,
-        userName: userName!,
-        userId: userId!,
-        onQuizComplete: showResults,
-      );
+      currentScreen = SynchronizedQuizScreen(
+  selectedLanguage: language,
+  userName: userName!,
+  userId: userId!,
+  onQuizComplete: showResults,
+);
     });
   }
 

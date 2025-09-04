@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'dart:math';
-import 'leaderboard_screen.dart';
 
 class ResultScreen extends StatefulWidget {
   final int score;
