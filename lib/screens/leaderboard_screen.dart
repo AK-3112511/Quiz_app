@@ -25,16 +25,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   late AnimationController _slideController;
   late AnimationController _pulseController;
   late AnimationController _refreshController;
+  late AnimationController _shimmerController;
   
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
   late Animation<double> _pulseAnimation;
   late Animation<double> _refreshAnimation;
+  late Animation<double> _shimmerAnimation;
   
   int _currentUserRank = -1;
   int _totalParticipants = 0;
   bool _isRefreshing = false;
   Map<String, dynamic>? _currentUserData;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -44,6 +47,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     _slideController = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
     _pulseController = AnimationController(duration: const Duration(milliseconds: 2000), vsync: this);
     _refreshController = AnimationController(duration: const Duration(milliseconds: 1000), vsync: this);
+    _shimmerController = AnimationController(duration: const Duration(milliseconds: 1500), vsync: this);
     
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeOut)
@@ -56,6 +60,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     );
     _refreshAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _refreshController, curve: Curves.easeInOut)
+    );
+    _shimmerAnimation = Tween<double>(begin: -2.0, end: 2.0).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.linear)
     );
 
     _startAnimations();
@@ -70,21 +77,23 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       }
     });
     _pulseController.repeat(reverse: true);
+    _shimmerController.repeat();
   }
 
   Future<void> _getUserRank() async {
     try {
-      final rank = await LeaderboardServices.getUserRank(widget.currentUserId);
+      setState(() {
+        _errorMessage = null;
+      });
+      
+      final rank = await LeaderboardServices.getFinalUserRank(widget.currentUserId);
       final userData = await LeaderboardServices.getUserData(widget.currentUserId);
-      final snapshot = await FirebaseFirestore.instance
-          .collection('leaderboard')
-          .orderBy('score', descending: true)
-          .get();
+      final count = await LeaderboardServices.getActiveParticipantsCount();
       
       if (mounted) {
         setState(() {
           _currentUserRank = rank;
-          _totalParticipants = snapshot.docs.length;
+          _totalParticipants = count;
           _currentUserData = userData;
         });
       }
@@ -95,6 +104,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           _currentUserRank = -1;
           _totalParticipants = 0;
           _currentUserData = null;
+          _errorMessage = 'Failed to load user data';
         });
       }
     }
@@ -105,6 +115,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     
     setState(() {
       _isRefreshing = true;
+      _errorMessage = null;
     });
     
     try {
@@ -113,14 +124,43 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       
       await _getUserRank();
       await Future.delayed(const Duration(milliseconds: 500));
-    } catch (e) {
-      print('Error refreshing leaderboard data: $e');
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to refresh leaderboard: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                const Text('Leaderboard refreshed successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error refreshing leaderboard data: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to refresh data. Please try again.';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text('Refresh failed: ${e.toString()}'),
+              ],
+            ),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         );
       }
@@ -134,12 +174,105 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     }
   }
 
+  Widget _buildShimmerEffect() {
+    return AnimatedBuilder(
+      animation: _shimmerAnimation,
+      builder: (context, child) {
+        return ListView.builder(
+          itemCount: 8,
+          itemBuilder: (context, index) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 0.5,
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              height: 16,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 12,
+                              width: 100,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        height: 30,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Shimmer overlay
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            Colors.white.withOpacity(0.1),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.5, 1.0],
+                          begin: Alignment(-1.0 + _shimmerAnimation.value, 0.0),
+                          end: Alignment(-0.5 + _shimmerAnimation.value, 0.0),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
     _pulseController.dispose();
     _refreshController.dispose();
+    _shimmerController.dispose();
     super.dispose();
   }
 
@@ -206,6 +339,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 opacity: _fadeAnimation.value,
                 child: Column(
                   children: [
+                    // Header Section
                     if (!widget.showBackButton)
                       Container(
                         margin: const EdgeInsets.all(20),
@@ -296,6 +430,63 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         ),
                       ),
 
+                    // Error Message Banner
+                    if (_errorMessage != null)
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade900.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.red.shade600.withOpacity(0.5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.red.shade400,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Connection Error',
+                                    style: TextStyle(
+                                      color: Colors.red.shade300,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    _errorMessage!,
+                                    style: TextStyle(
+                                      color: Colors.red.shade200,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _refreshData,
+                              child: Text(
+                                'Retry',
+                                style: TextStyle(
+                                  color: Colors.red.shade300,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
                     // Main Leaderboard
                     Expanded(
                       child: AnimatedBuilder(
@@ -304,7 +495,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                           return Transform.translate(
                             offset: Offset(0, (1 - _slideAnimation.value) * 30),
                             child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 20),
+                              margin: EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: _errorMessage != null ? 10 : 0,
+                              ),
                               padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
@@ -348,25 +542,26 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                                         ),
                                       ),
                                       const Spacer(),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF1976D2).withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(
-                                            color: const Color(0xFF1976D2).withOpacity(0.4),
-                                            width: 0.5,
+                                      if (_totalParticipants > 0)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF1976D2).withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: const Color(0xFF1976D2).withOpacity(0.4),
+                                              width: 0.5,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$_totalParticipants Players',
+                                            style: const TextStyle(
+                                              color: Color(0xFF1976D2),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                         ),
-                                        child: Text(
-                                          '$_totalParticipants Players',
-                                          style: const TextStyle(
-                                            color: Color(0xFF1976D2),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
                                     ],
                                   ),
                                   const SizedBox(height: 16),
@@ -375,14 +570,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                                       stream: FirebaseFirestore.instance
                                           .collection('leaderboard')
                                           .orderBy('score', descending: true)
+                                          .orderBy('lastUpdated', descending: false)
                                           .snapshots(),
                                       builder: (context, snapshot) {
-                                        if (!snapshot.hasData) {
-                                          return const Center(
-                                            child: CircularProgressIndicator(
-                                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1976D2)),
-                                            ),
-                                          );
+                                        if (snapshot.connectionState == ConnectionState.waiting) {
+                                          return _buildShimmerEffect();
                                         }
 
                                         if (snapshot.hasError) {
@@ -391,22 +583,47 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                                               mainAxisAlignment: MainAxisAlignment.center,
                                               children: [
                                                 Icon(
-                                                  Icons.error_outline,
+                                                  Icons.cloud_off_rounded,
                                                   color: Colors.red.withOpacity(0.7),
                                                   size: 48,
                                                 ),
                                                 const SizedBox(height: 12),
                                                 Text(
-                                                  'Error loading leaderboard',
+                                                  'Connection Lost',
                                                   style: TextStyle(
                                                     color: Colors.white.withOpacity(0.8),
-                                                    fontSize: 16,
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.bold,
                                                   ),
                                                 ),
                                                 const SizedBox(height: 8),
-                                                ElevatedButton(
+                                                Text(
+                                                  'Unable to load leaderboard data',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.withOpacity(0.7),
+                                                    fontSize: 14,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                const SizedBox(height: 16),
+                                                ElevatedButton.icon(
                                                   onPressed: _refreshData,
-                                                  child: const Text('Retry'),
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: const Color(0xFF1976D2),
+                                                    foregroundColor: Colors.white,
+                                                    padding: const EdgeInsets.symmetric(
+                                                      horizontal: 20, 
+                                                      vertical: 12
+                                                    ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(8),
+                                                    ),
+                                                  ),
+                                                  icon: const Icon(Icons.refresh, size: 18),
+                                                  label: const Text(
+                                                    'Try Again',
+                                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                                  ),
                                                 ),
                                               ],
                                             ),
@@ -446,6 +663,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                                             ),
                                           );
                                         }
+
+                                        // Update total participants if different
+                                        if (_totalParticipants != allPlayers.length) {
+                                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                                            setState(() {
+                                              _totalParticipants = allPlayers.length;
+                                            });
+                                          });
+                                        }
                                         
                                         return ListView.builder(
                                           physics: const BouncingScrollPhysics(),
@@ -453,6 +679,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                                           itemBuilder: (context, index) {
                                             final player = allPlayers[index];
                                             final isCurrentUser = player['uid'] == widget.currentUserId;
+                                            final rankPosition = index + 1;
                                             
                                             return AnimatedBuilder(
                                               animation: _pulseAnimation,
@@ -484,23 +711,24 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                                                     ),
                                                     child: Row(
                                                       children: [
+                                                        // Rank Badge
                                                         Container(
                                                           width: 40,
                                                           height: 40,
                                                           decoration: BoxDecoration(
-                                                            gradient: _getRankGradient(index + 1),
+                                                            gradient: _getRankGradient(rankPosition),
                                                             shape: BoxShape.circle,
                                                             border: Border.all(
-                                                              color: _getRankColor(index + 1),
+                                                              color: _getRankColor(rankPosition),
                                                               width: 1.5,
                                                             ),
                                                           ),
                                                           child: Center(
-                                                            child: _getRankIcon(index + 1) ??
+                                                            child: _getRankIcon(rankPosition) ??
                                                                 Text(
-                                                                  '${index + 1}',
+                                                                  '$rankPosition',
                                                                   style: TextStyle(
-                                                                    color: _getRankColor(index + 1),
+                                                                    color: _getRankColor(rankPosition),
                                                                     fontSize: 16,
                                                                     fontWeight: FontWeight.bold,
                                                                   ),
@@ -509,54 +737,120 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                                                         ),
                                                         const SizedBox(width: 16),
                                                         
+                                                        // Player Info
                                                         Expanded(
                                                           child: Column(
                                                             crossAxisAlignment: CrossAxisAlignment.start,
                                                             children: [
-                                                              Text(
-                                                                player['name'] ?? 'Player',
-                                                                style: TextStyle(
-                                                                  color: isCurrentUser
-                                                                      ? const Color(0xFF1976D2)
-                                                                      : Colors.white.withOpacity(0.9),
-                                                                  fontSize: 16,
-                                                                  fontWeight: FontWeight.w600,
-                                                                ),
-                                                                maxLines: 1,
-                                                                overflow: TextOverflow.ellipsis,
+                                                              Row(
+                                                                children: [
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      player['name'] ?? 'Anonymous Player',
+                                                                      style: TextStyle(
+                                                                        color: isCurrentUser
+                                                                            ? const Color(0xFF1976D2)
+                                                                            : Colors.white.withOpacity(0.9),
+                                                                        fontSize: 16,
+                                                                        fontWeight: FontWeight.w600,
+                                                                      ),
+                                                                      maxLines: 1,
+                                                                      overflow: TextOverflow.ellipsis,
+                                                                    ),
+                                                                  ),
+                                                                  if (isCurrentUser)
+                                                                    Container(
+                                                                      padding: const EdgeInsets.symmetric(
+                                                                        horizontal: 6, 
+                                                                        vertical: 2
+                                                                      ),
+                                                                      decoration: BoxDecoration(
+                                                                        color: const Color(0xFF1976D2).withOpacity(0.2),
+                                                                        borderRadius: BorderRadius.circular(4),
+                                                                        border: Border.all(
+                                                                          color: const Color(0xFF1976D2).withOpacity(0.5),
+                                                                          width: 0.5,
+                                                                        ),
+                                                                      ),
+                                                                      child: Text(
+                                                                        'YOU',
+                                                                        style: TextStyle(
+                                                                          color: const Color(0xFF1976D2),
+                                                                          fontSize: 9,
+                                                                          fontWeight: FontWeight.bold,
+                                                                          letterSpacing: 1,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                ],
                                                               ),
-                                                              if (isCurrentUser)
-                                                                Text(
-                                                                  'YOU',
-                                                                  style: TextStyle(
-                                                                    color: const Color(0xFF1976D2).withOpacity(0.8),
-                                                                    fontSize: 10,
-                                                                    fontWeight: FontWeight.bold,
-                                                                    letterSpacing: 1,
-                                                                  ),
-                                                                ),
-                                                              if (player['lastUpdated'] != null)
-                                                                Text(
-                                                                  'Last active',
-                                                                  style: TextStyle(
-                                                                    color: Colors.white.withOpacity(0.5),
-                                                                    fontSize: 10,
-                                                                  ),
-                                                                ),
+                                                              const SizedBox(height: 2),
+                                                              Row(
+                                                                children: [
+                                                                  if (player['isCompleted'] == true)
+                                                                    Container(
+                                                                      padding: const EdgeInsets.symmetric(
+                                                                        horizontal: 6, 
+                                                                        vertical: 1
+                                                                      ),
+                                                                      decoration: BoxDecoration(
+                                                                        color: Colors.green.withOpacity(0.2),
+                                                                        borderRadius: BorderRadius.circular(4),
+                                                                      ),
+                                                                      child: Text(
+                                                                        'COMPLETED',
+                                                                        style: TextStyle(
+                                                                          color: Colors.green.shade400,
+                                                                          fontSize: 8,
+                                                                          fontWeight: FontWeight.bold,
+                                                                        ),
+                                                                      ),
+                                                                    )
+                                                                  else
+                                                                    Container(
+                                                                      padding: const EdgeInsets.symmetric(
+                                                                        horizontal: 6, 
+                                                                        vertical: 1
+                                                                      ),
+                                                                      decoration: BoxDecoration(
+                                                                        color: Colors.orange.withOpacity(0.2),
+                                                                        borderRadius: BorderRadius.circular(4),
+                                                                      ),
+                                                                      child: Text(
+                                                                        'IN PROGRESS',
+                                                                        style: TextStyle(
+                                                                          color: Colors.orange.shade400,
+                                                                          fontSize: 8,
+                                                                          fontWeight: FontWeight.bold,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  const SizedBox(width: 8),
+                                                                  if (player['answered'] != null)
+                                                                    Text(
+                                                                      '${player['answered']} questions answered',
+                                                                      style: TextStyle(
+                                                                        color: Colors.white.withOpacity(0.5),
+                                                                        fontSize: 10,
+                                                                      ),
+                                                                    ),
+                                                                ],
+                                                              ),
                                                             ],
                                                           ),
                                                         ),
                                                         
+                                                        // Score Display
                                                         Container(
                                                           padding: const EdgeInsets.symmetric(
                                                             horizontal: 12,
                                                             vertical: 6,
                                                           ),
                                                           decoration: BoxDecoration(
-                                                            color: _getRankColor(index + 1).withOpacity(0.15),
+                                                            color: _getRankColor(rankPosition).withOpacity(0.15),
                                                             borderRadius: BorderRadius.circular(10),
                                                             border: Border.all(
-                                                              color: _getRankColor(index + 1).withOpacity(0.4),
+                                                              color: _getRankColor(rankPosition).withOpacity(0.4),
                                                               width: 1,
                                                             ),
                                                           ),
@@ -565,7 +859,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                                                               Text(
                                                                 '${player['score'] ?? 0}',
                                                                 style: TextStyle(
-                                                                  color: _getRankColor(index + 1),
+                                                                  color: _getRankColor(rankPosition),
                                                                   fontSize: 18,
                                                                   fontWeight: FontWeight.bold,
                                                                 ),
@@ -573,7 +867,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                                                               Text(
                                                                 'points',
                                                                 style: TextStyle(
-                                                                  color: _getRankColor(index + 1).withOpacity(0.7),
+                                                                  color: _getRankColor(rankPosition).withOpacity(0.7),
                                                                   fontSize: 10,
                                                                   fontWeight: FontWeight.w500,
                                                                 ),
@@ -600,28 +894,35 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       ),
                     ),
 
-                    // Current User Summary (if not visible in list or for confirmation)
-                    if (_currentUserRank > 0)
+                    // Current User Summary
+                    if (_currentUserRank > 0 && _currentUserData != null)
                       Container(
                         margin: const EdgeInsets.all(20),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: _currentUserRank <= 10
+                            colors: _currentUserRank <= 3
                                 ? [
                                     const Color(0xFF4CAF50).withOpacity(0.15),
                                     const Color(0xFF4CAF50).withOpacity(0.05),
                                   ]
-                                : [
-                                    const Color(0xFFFF6F00).withOpacity(0.15),
-                                    const Color(0xFFFF6F00).withOpacity(0.05),
-                                  ],
+                                : _currentUserRank <= 10
+                                    ? [
+                                        const Color(0xFF2196F3).withOpacity(0.15),
+                                        const Color(0xFF2196F3).withOpacity(0.05),
+                                      ]
+                                    : [
+                                        const Color(0xFFFF6F00).withOpacity(0.15),
+                                        const Color(0xFFFF6F00).withOpacity(0.05),
+                                      ],
                           ),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: _currentUserRank <= 10
+                            color: _currentUserRank <= 3
                                 ? const Color(0xFF4CAF50).withOpacity(0.4)
-                                : const Color(0xFFFF6F00).withOpacity(0.4),
+                                : _currentUserRank <= 10
+                                    ? const Color(0xFF2196F3).withOpacity(0.4)
+                                    : const Color(0xFFFF6F00).withOpacity(0.4),
                             width: 1,
                           ),
                         ),
@@ -631,36 +932,111 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  _currentUserRank <= 10 ? Icons.stars : Icons.my_location,
-                                  color: _currentUserRank <= 10
+                                  _currentUserRank <= 3 
+                                      ? Icons.emoji_events 
+                                      : _currentUserRank <= 10
+                                          ? Icons.stars
+                                          : Icons.my_location,
+                                  color: _currentUserRank <= 3
                                       ? const Color(0xFF4CAF50)
-                                      : const Color(0xFFFF6F00),
+                                      : _currentUserRank <= 10
+                                          ? const Color(0xFF2196F3)
+                                          : const Color(0xFFFF6F00),
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Your Final Rank: $_currentUserRank / $_totalParticipants',
                                   style: TextStyle(
-                                    color: _currentUserRank <= 10
+                                    color: _currentUserRank <= 3
                                         ? const Color(0xFF4CAF50)
-                                        : const Color(0xFFFF6F00),
+                                        : _currentUserRank <= 10
+                                            ? const Color(0xFF2196F3)
+                                            : const Color(0xFFFF6F00),
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
-                            if (_currentUserData != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Final Score: ${_currentUserData!['score'] ?? 0} points',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.8),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                Column(
+                                  children: [
+                                    Text(
+                                      '${_currentUserData!['score'] ?? 0}',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Final Score',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.6),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
+                                Container(
+                                  height: 30,
+                                  width: 1,
+                                  color: Colors.white.withOpacity(0.2),
+                                ),
+                                Column(
+                                  children: [
+                                    Text(
+                                      '${_currentUserData!['answered'] ?? 0}',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Answered',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.6),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  height: 30,
+                                  width: 1,
+                                  color: Colors.white.withOpacity(0.2),
+                                ),
+                                Column(
+                                  children: [
+                                    Text(
+                                      _currentUserData!['isCompleted'] == true ? 'YES' : 'NO',
+                                      style: TextStyle(
+                                        color: _currentUserData!['isCompleted'] == true 
+                                            ? Colors.green.shade400
+                                            : Colors.orange.shade400,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Completed',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.6),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),

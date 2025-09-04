@@ -41,6 +41,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
   bool _isCompleting = false;
   bool _showingLeaderboard = false;
   bool _waitingForLeaderboard = false;
+  bool _initialized = false;
 
   late AnimationController _timerController;
   late AnimationController _questionController;
@@ -105,7 +106,9 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
     _backgroundController.repeat();
     _particleController.repeat();
     _pulseController.repeat(reverse: true);
-    _startQuestion();
+    
+    // Initialize user in Firebase with slight delay to ensure proper setup
+    _initializeUser();
   }
 
   void _initializeParticles() {
@@ -131,6 +134,34 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
         speed: 0.1 + Random().nextDouble() * 0.5,
         opacity: 0.05 + Random().nextDouble() * 0.15,
       ));
+    }
+  }
+
+  Future<void> _initializeUser() async {
+    try {
+      // Initialize user in Firebase
+      await LeaderboardServices.initializeUser(widget.userId, widget.userName);
+      
+      // Add small delay to allow Firebase to process
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      if (mounted) {
+        setState(() {
+          _initialized = true;
+        });
+        
+        // Start the first question after successful initialization
+        _startQuestion();
+      }
+    } catch (e) {
+      print('Error initializing user: $e');
+      // Start quiz anyway even if Firebase initialization fails
+      if (mounted) {
+        setState(() {
+          _initialized = true;
+        });
+        _startQuestion();
+      }
     }
   }
 
@@ -162,7 +193,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
   }
 
   void _startQuestion() {
-    if (_isCompleting || _showingLeaderboard) return;
+    if (_isCompleting || _showingLeaderboard || !_initialized) return;
     
     setState(() {
       _isTransitioning = false;
@@ -184,7 +215,11 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
           missed++;
           _waitingForLeaderboard = true;
         });
-        _waitForLeaderboardTimer();
+        
+        // Update user progress even if they missed the question
+        _updateUserProgress();
+        // Show leaderboard immediately after time is up
+        _showLeaderboard();
       }
     });
   }
@@ -207,25 +242,33 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
       }
     });
 
-    // Update score in Firebase if answer is correct
-    if (answerIndex == questions[currentQuestionIndex]['correct']) {
-      try {
-        await LeaderboardServices.updateScore(widget.userId, widget.userName, score);
-      } catch (e) {
-        print('Error updating score: $e');
-      }
-    }
+    // Update user progress in Firebase
+    await _updateUserProgress();
 
-    // Wait for the remaining time before showing leaderboard
+    // Calculate remaining time and wait, then show leaderboard
     _waitForLeaderboardTimer();
+  }
+
+  Future<void> _updateUserProgress() async {
+    try {
+      await LeaderboardServices.updateUserProgress(
+        widget.userId, 
+        widget.userName, 
+        score, 
+        currentQuestionIndex + 1
+      );
+    } catch (e) {
+      print('Error updating user progress: $e');
+    }
   }
 
   void _waitForLeaderboardTimer() {
     // Calculate remaining time until 15 seconds are up
-    int remainingTime = (15000 - (_timerController.value * 15000)).round();
-    if (remainingTime < 0) remainingTime = 0;
+    int elapsedMs = (_timerController.value * 15000).round();
+    int remainingMs = 15000 - elapsedMs;
+    if (remainingMs < 0) remainingMs = 0;
 
-    _leaderboardTimer = Timer(Duration(milliseconds: remainingTime), () {
+    _leaderboardTimer = Timer(Duration(milliseconds: remainingMs), () {
       if (mounted && !_isCompleting) {
         _showLeaderboard();
       }
@@ -249,19 +292,29 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
       _transitionController.reset();
       _startQuestion();
     } else {
-      // Quiz completed
-      setState(() {
-        _isCompleting = true;
-      });
-      
-      _transitionController.forward().then((_) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) {
-            widget.onQuizComplete(score, questions.length, missed);
-          }
-        });
-      });
+      // Quiz completed - mark user as completed in Firebase
+      _completeQuiz();
     }
+  }
+
+  Future<void> _completeQuiz() async {
+    setState(() {
+      _isCompleting = true;
+    });
+    
+    try {
+      await LeaderboardServices.markUserCompleted(widget.userId, score);
+    } catch (e) {
+      print('Error marking user completed: $e');
+    }
+    
+    _transitionController.forward().then((_) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          widget.onQuizComplete(score, questions.length, missed);
+        }
+      });
+    });
   }
 
   void _showLeaderboard() async {
@@ -392,7 +445,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 12),
           Text(
-            'Waiting for all players to finish...',
+            'Preparing leaderboard...',
             style: TextStyle(
               color: const Color(0xFF1976D2),
               fontSize: 14,
@@ -420,6 +473,50 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    // Show loading screen until user is initialized
+    if (!_initialized) {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF000000), Color(0xFF1A1A1A), Color(0xFF000000)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF1976D2)),
+                  strokeWidth: 3,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Joining Quiz Session...',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Synchronizing with other participants',
+                  style: TextStyle(
+                    color: Colors.grey.withOpacity(0.6),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     if (_isCompleting) {
       return AnimatedBuilder(
         animation: _transitionAnimation,
@@ -470,7 +567,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'Calculating Results...',
+                              'Calculating Final Results...',
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.8),
                                 fontSize: 16,
